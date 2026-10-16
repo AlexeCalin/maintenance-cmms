@@ -273,4 +273,7 @@ const initial=document.getElementById('cloudInitialUpload');if(initial)initial.d
 const signout=document.getElementById('cloudSignOut');if(signout)signout.onclick=()=>{adminPassword='';document.body.classList.add('locked');document.getElementById('loginGate').hidden=false;window.cmmsReturnToWelcome?.();refresh().catch(()=>{});};
 window.addEventListener('online',()=>refresh().catch(()=>{}));
 refresh().catch(e=>{note('Conectare esuata: '+e.message);alert('Nu se pot incarca datele Supabase: '+e.message);});
-})();</script></body></html>
+})();</script>
+<style id="mainMenuReturnStyle">#mainMenuReturn{position:fixed;right:18px;bottom:18px;z-index:200000;display:flex;align-items:center;gap:8px;background:#1762a5;color:#fff;border:2px solid #fff;border-radius:999px;padding:12px 18px;box-shadow:0 5px 22px #0005;font:600 14px Segoe UI,Arial,sans-serif;text-decoration:none}#mainMenuReturn:hover,#mainMenuReturn:focus{background:#104b80} @media(max-width:480px){#mainMenuReturn{right:12px;bottom:12px;padding:11px 14px;font-size:13px}}</style>
+<a id="mainMenuReturn" href="https://alexecalin.github.io/" aria-label="Înapoi la meniul principal">← Meniu principal</a>
+</body></html>
