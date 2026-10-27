@@ -283,7 +283,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const date=()=>dayString(new Date());
 const monday=()=>{let d=new Date(date()+'T12:00:00');d.setDate(d.getDate()-(d.getDay()+6)%7);return dayString(d)};
 const sunday=()=>{let d=new Date(monday()+'T12:00:00');d.setDate(d.getDate()+6);return dayString(d)};
-let tab='week';const tabs=[['week','New · This week'],['overdue','Overdue'],['partial','Partially Completed'],['plans','Defined plans'],['history','History'],['stats','Statistics'],['calendar','WK1–WK52 Calendar']];
+let tab='week';const historyFilters={from:'',to:'',hall:'',tech:''};const tabs=[['week','New · This week'],['overdue','Overdue'],['partial','Partially Completed'],['plans','Defined plans'],['history','History'],['stats','Statistics'],['calendar','WK1–WK52 Calendar']];
 const equip=id=>db.equipment.find(e=>e.id===id);
 const techName=id=>db.techs.find(t=>t.id===id)?.name||'';
 const filtered=()=>db.plans.filter(p=>{const e=equip(p.machine);return (!$('pmNewHall').value||e?.area===$('pmNewHall').value)&&(!$('pmNewMachine').value||p.machine===$('pmNewMachine').value)});
@@ -297,7 +297,25 @@ function render(){document.getElementById('preventive').classList.toggle('pm-sho
   const pending=plans.flatMap(p=>(p.partialExecutions||[]).map(e=>({p,e})));
   body.innerHTML=pending.map(({p,e})=>`<div class="pm-new-card"><strong>${info(p)}</strong><p>Scadență inițială: ${esc(e.scheduledDue)} · Executat parțial: ${esc(e.date)} · ${esc(e.techName)} · ${esc(e.hours)} h</p><p>${esc(e.notes)}</p><button type="button" data-pmnew-close="${esc(p.id)}" data-execution="${esc(e.id)}">Reopen / Close</button></div>`).join('')||'<p>Nu există lucrări închise parțial.</p>';
  }else if(tab==='history'){
-  body.innerHTML='<div class="scroll"><table><thead><tr><th>Data</th><th>Hală / Echipament</th><th>Lucrare</th><th>Responsabil</th><th>Ore</th><th>Stare</th></tr></thead><tbody>'+history.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))).map(h=>`<tr><td>${esc(h.date)}</td><td>${esc(equip(h.machine)?.area)} / ${esc(h.machineName)}</td><td>${esc(h.task)}</td><td>${esc(h.techName)}</td><td>${esc(h.hours)}</td><td>${h.wasPartial?'Parțial → Închis':'Închis'}</td></tr>`).join('')+'</tbody></table></div>';
+  const halls=[...new Set(db.equipment.map(e=>e.area).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ro',{numeric:true}));
+  const responsible=[...db.techs].sort((a,b)=>a.name.localeCompare(b.name,'ro'));
+  const hallOptions='<option value="">Toate halele</option>'+halls.map(h=>`<option value="${esc(h)}" ${historyFilters.hall===h?'selected':''}>${esc(h)}</option>`).join('');
+  const techOptions='<option value="">Toți responsabilii</option>'+responsible.map(t=>`<option value="${esc(t.id)}" ${historyFilters.tech===t.id?'selected':''}>${esc(t.name)}</option>`).join('');
+  const rows=history.filter(h=>{
+    const hall=equip(h.machine)?.area||'';
+    const responsibleId=h.tech||db.techs.find(t=>t.name===h.techName)?.id||'';
+    return (!historyFilters.from||h.date>=historyFilters.from)&&(!historyFilters.to||h.date<=historyFilters.to)&&(!historyFilters.hall||hall===historyFilters.hall)&&(!historyFilters.tech||responsibleId===historyFilters.tech);
+  }).sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+  body.innerHTML=`<div class="panel"><h3>Filtre istoric mentenanță preventivă</h3><div class="actions" style="align-items:end;gap:12px;flex-wrap:wrap">
+    <label>De la data<input id="pmNewHistoryFrom" type="date" value="${esc(historyFilters.from)}"></label>
+    <label>Până la data<input id="pmNewHistoryTo" type="date" value="${esc(historyFilters.to)}"></label>
+    <label>Hală<select id="pmNewHistoryHall">${hallOptions}</select></label>
+    <label>Responsabil<select id="pmNewHistoryTech">${techOptions}</select></label>
+    <button type="button" id="pmNewHistoryReset">Resetează filtrele</button>
+  </div><p class="muted">${rows.length} execuții afișate din ${history.length} pentru echipamentele selectate.</p>
+  <div class="scroll"><table><thead><tr><th>Data</th><th>Hală</th><th>Echipament</th><th>Lucrare</th><th>Responsabil</th><th>Ore</th><th>Stare</th></tr></thead><tbody>${rows.map(h=>`<tr><td>${esc(h.date)}</td><td>${esc(equip(h.machine)?.area||'—')}</td><td>${esc(h.machineName||equip(h.machine)?.name||'—')}</td><td>${esc(h.task)}</td><td>${esc(h.techName||techName(h.tech))}</td><td>${esc(h.hours)}</td><td>${h.wasPartial?'Parțial → Închis':'Închis'}</td></tr>`).join('')||'<tr><td colspan="7">Nu există execuții pentru filtrele selectate.</td></tr>'}</tbody></table></div></div>`;
+  ['From','To','Hall','Tech'].forEach(k=>{const el=$('pmNewHistory'+k);el.addEventListener('change',()=>{historyFilters[k.toLowerCase()]=el.value;render();});});
+  $('pmNewHistoryReset').onclick=()=>{Object.keys(historyFilters).forEach(k=>historyFilters[k]='');render();};
  }else if(tab==='stats'){
   const y=+$('pmNewYear').value;const done=history.filter(h=>String(h.date).startsWith(y+'-'));body.innerHTML=`<div class="metrics"><div class="metric">Planuri definite<b>${plans.length}</b></div><div class="metric">Execuții în ${y}<b>${done.length}</b></div><div class="metric">Ore preventive<b>${done.reduce((n,h)=>n+(Number(h.hours)||0),0).toFixed(2)}</b></div><div class="metric">Închise după parțial<b>${done.filter(h=>h.wasPartial).length}</b></div></div>`;
  }else if(tab==='calendar'){
